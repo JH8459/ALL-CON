@@ -22,6 +22,7 @@ export interface main {
     total_comment?: number;
     createdAt?: Date;
     updatedAt?: Date;
+    activation?: boolean;
   };
   /* 현재 선택된 포스터 상세정보 */
   detail: {
@@ -50,6 +51,16 @@ export interface main {
   isRendering: boolean;
   /* 콘서트 페이지 이동 여부 상태 */
   passToConcert: boolean;
+  /* 댓글 총 개수 */
+  mainTotalComments: number;
+  /* 마지막 인덱스 */
+  mainLastIdx: number;
+  /* order 클릭 */
+  isOrderClicked?: boolean;
+  /* poster 로딩 */
+  posterLoading?: boolean;
+  /* mainPage 로딩 */
+  mainLoading?: boolean;
 }
 
 /* State 초기값 설정 */
@@ -61,6 +72,11 @@ const initialState: main = {
   targetIdx: 0,
   isRendering: false,
   passToConcert: false,
+  mainTotalComments: 0,
+  mainLastIdx: 0,
+  isOrderClicked: false,
+  posterLoading: false,
+  mainLoading: true,
 };
 
 const mainSlice = createSlice({
@@ -89,6 +105,21 @@ const mainSlice = createSlice({
     setPassToConcert: (state: main, { payload }: PayloadAction<boolean>) => {
       state.passToConcert = payload;
     },
+    setMainTotalComments: (state: main, { payload }: PayloadAction<number>) => {
+      state.mainTotalComments = payload;
+    },
+    setMainLastIdx: (state: main, { payload }: PayloadAction<number>) => {
+      state.mainLastIdx = payload;
+    },
+    setIsOrderClicked: (state: main, { payload }: PayloadAction<boolean>) => {
+      state.isOrderClicked = payload;
+    },
+    setPosterLoading: (state: main, { payload }: PayloadAction<boolean>) => {
+      state.posterLoading = payload;
+    },
+    setMainLoading: (state: main, { payload }: PayloadAction<boolean>) => {
+      state.mainLoading = payload;
+    },
   },
 });
 
@@ -100,5 +131,10 @@ export const {
   setAllConcerts,
   setIsRendering,
   setPassToConcert,
+  setMainTotalComments,
+  setMainLastIdx,
+  setIsOrderClicked,
+  setPosterLoading,
+  setMainLoading,
 } = mainSlice.actions;
 export default mainSlice.reducer;

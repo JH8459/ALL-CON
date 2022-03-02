@@ -1,12 +1,14 @@
+/* CSS import */
+import LoadingImage from '../../images/spinner.gif';
 /* Store import */
 import { RootState } from '../../index';
-import { setTarget, setAllConcerts } from '../../store/MainSlice';
+import { setTarget } from '../../store/MainSlice';
 import {
   setAllArticles,
   setArticleTotalPage,
   setArticleCurPage,
   setArticleRendered,
-  setTargetArticle,
+  setIsLoadingArticle,
 } from '../../store/ConChinSlice';
 /* Library import */
 import axios from 'axios';
@@ -20,13 +22,45 @@ function ConChinPostingBox() {
   const { postingOrder } = useSelector((state: RootState) => state.conChin);
   const { target } = useSelector((state: RootState) => state.main);
   const { allConcerts } = useSelector((state: RootState) => state.main);
-  const { articleOrder, allArticles, articleRendered, targetArticle } =
+  const { articleOrder, allArticles, articleRendered, isLoadingConChin } =
     useSelector((state: RootState) => state.conChin);
+
+  /* 지역상태 interface */
+  interface ConChinTarget {
+    id?: number;
+    exclusive?: string;
+    open_date?: Date;
+    post_date?: string;
+    image_concert?: string;
+    title?: string;
+    period?: string;
+    place?: string;
+    price?: string;
+    running_time?: string;
+    rating?: string;
+    link?: string;
+    view?: number;
+    total_comment?: number;
+    createdAt?: Date;
+    updatedAt?: Date;
+    activation?: boolean;
+  }
+
+  /* useState => 지역상태 */
+  const [conChinAllConcerts, setConChinAllConcerts] = useState<any[]>([]);
+  const [conChinPostingOrder, setConChinPostingOrder] =
+    useState<String>('view');
+  const [conChinTarget, setConChinTarget] = useState<ConChinTarget>({});
+  const [conChinIsLoadingConChin, setConChinIsLoadingConChin] = useState<{
+    posting?: boolean;
+  }>({});
 
   /* 조건부 게시물 받아오기 */
   const getAllArticlesWithCondition = async () => {
     try {
       if (!articleRendered) {
+        /* 로딩 상태 세팅 article */
+        dispatch(setIsLoadingArticle(false));
         if (Object.keys(target).length > 0 && allArticles.length > 0) {
           /* 타겟에 종속된 게시물이 있을때, 해당 게시물들만 받아오기 */
           const response = await axios.get(
@@ -34,122 +68,119 @@ function ConChinPostingBox() {
             { withCredentials: true },
           );
           if (response.data) {
+            dispatch(setIsLoadingArticle(true));
             dispatch(setAllArticles(response.data.data.articleInfo));
             dispatch(setArticleTotalPage(response.data.data.totalPage));
             dispatch(setArticleCurPage(1));
             dispatch(setArticleRendered(true));
           } else {
-            // console.log('ConChinPostingBox=> 없거나 실수로 못가져왔어요.');
           }
-        }
-      } else {
-        if (
-          Object.keys(target).length > 0 &&
-          Object.keys(targetArticle).length === 0
-        ) {
-          // resetAllTarget();
-        } else if (
-          Object.keys(target).length > 0 &&
-          Object.keys(targetArticle).length > 0
-        ) {
-        } else if (Object.keys(target).length > 0 && allArticles.length === 0) {
-          // resetAllTarget();
         }
       }
     } catch (err) {
       console.log(err);
       dispatch(setAllArticles([]));
       dispatch(setArticleTotalPage(0));
-      // console.log('ConChinPostingBox=> 게시물이 없네요.');
     }
   };
-
-  /* 전체 게시물 받아오기(무조건) */
-  // const getAllArticles = async () => {
-  //   try {
-  //     const response = await axios.get(
-  //       `${process.env.REACT_APP_API_URL}/concert/article?order=${articleOrder}`,
-  //       { withCredentials: true },
-  //     );
-  //     if (response.data) {
-  //       // dispatch(setTarget({}));
-  //       dispatch(setAllArticles(response.data.data.articleInfo));
-  //       dispatch(setArticleTotalPage(response.data.data.totalPage));
-  //       dispatch(setArticleCurPage(1));
-  //       console.log('ConChinPostingBox => 전체 콘서트를 가져왔습니다.');
-  //     } else {
-  //       console.log('없거나 실수로 못가져왔어요..');
-  //     }
-  //   } catch (err) {
-  //     console.log(err);
-  //     console.log('에러가 났나봐요.');
-  //   }
-  // };
 
   /* 조건부 게시물 받아오기 & 타겟 교체 */
   function changeTarget(concert: any[]) {
     dispatch(setTarget(concert));
     getAllArticlesWithCondition();
   }
-  /* target,targetArticle 전체 초기화 핸들러 */
-  const resetAllTarget = () => {
-    dispatch(setTarget({}));
-    dispatch(setTargetArticle({}));
-    dispatch(setArticleRendered(false));
-  };
 
   /* useEffect: 타겟이 변경될 때마다 게시물 렌더링 */
   useEffect(() => {
     getAllArticlesWithCondition();
   }, [target]);
 
+  /* allConcerts 변경시 지역상태 conChinAllConcerts 변경  */
+  useEffect(() => {
+    setConChinAllConcerts(allConcerts);
+  }, [allConcerts]);
+
+  /* postingOrder 변경시 지역상태 conChinPostingOrder 변경  */
+  useEffect(() => {
+    setConChinPostingOrder(postingOrder);
+  }, [postingOrder]);
+
+  /* target 변경시 지역상태 conChinTarget 변경  */
+  useEffect(() => {
+    setConChinTarget(target);
+  }, [target]);
+
+  /* isLoadingConChin 변경시 지역상태 conChinIsLoadingConChin 변경  */
+  useEffect(() => {
+    if (isLoadingConChin !== undefined)
+      setConChinIsLoadingConChin(isLoadingConChin);
+  }, [isLoadingConChin]);
+
   return (
     <li id='conChinPostingBox'>
-      <h1 id={Object.keys(target).length === 0 ? 'curOrder' : 'curOrderChosen'}>
-        {postingOrder === 'view'
+      <h1
+        id={
+          Object.keys(conChinTarget).length === 0
+            ? 'curOrder'
+            : 'curOrderChosen'
+        }
+      >
+        {conChinPostingOrder === 'view'
           ? '조회수 순'
-          : postingOrder === 'near'
+          : conChinPostingOrder === 'near'
           ? '임박예정 순'
-          : postingOrder === 'new'
+          : conChinPostingOrder === 'new'
           ? '등록일 순'
           : null}
       </h1>
       <ConChinPostingOrderBox />
       <div
         id={
-          Object.keys(target).length === 0
+          Object.keys(conChinTarget).length === 0
             ? 'postingBoxWrapper'
             : 'postingBoxWrapperChosen'
         }
       >
-        {target !== undefined
-          ? allConcerts.map(concert => {
-              return (
-                <ul
-                  className={
-                    target.id === concert.id
-                      ? 'postingChosen'
-                      : Object.keys(target).length === 0
-                      ? 'posting'
-                      : 'postingUnChosen'
-                  }
-                  key={concert.id}
-                  onClick={() => {
-                    changeTarget(concert);
-                  }}
-                >
-                  <h1 className='title'>{concert.title}</h1>
-                  <p className='date'>
-                    {' '}
-                    오픈일
-                    <br /> {concert.post_date}
-                  </p>
-                  <p className='view'> 조회수 {concert.view}</p>
-                  <p className='place'> {concert.place}</p>
-                </ul>
-              );
-            })
-          : null}
+        {(conChinTarget.activation === true &&
+          conChinIsLoadingConChin.posting === true) ||
+        (conChinIsLoadingConChin.posting === true &&
+          Object.keys(conChinTarget).length === 0) ? (
+          conChinAllConcerts.map(concert => {
+            return (
+              <ul
+                className={
+                  conChinTarget.id === concert.id
+                    ? 'postingChosen'
+                    : Object.keys(conChinTarget).length === 0
+                    ? 'posting'
+                    : 'postingUnChosen'
+                }
+                key={concert.id}
+                onClick={() => {
+                  changeTarget(concert);
+                }}
+              >
+                <h1 className='title'>{concert.title}</h1>
+                <p className='date'>
+                  {' '}
+                  오픈일
+                  <br /> {concert.post_date}
+                </p>
+                <p className='view'> 조회수 {concert.view}</p>
+                <p className='place'> {concert.place}</p>
+              </ul>
+            );
+          })
+        ) : (conChinTarget.activation !== true &&
+            conChinIsLoadingConChin.posting === true) ||
+          (conChinIsLoadingConChin.posting === true &&
+            Object.keys(conChinTarget).length !== 0) ? (
+          <ul className='postingendChosen'>종료된 콘서트</ul>
+        ) : conChinIsLoadingConChin.posting === false ? (
+          <img className='loadingImg' src={LoadingImage} alt='LoadingImage' />
+        ) : (
+          <img className='loadingImg' src={LoadingImage} alt='LoadingImage' />
+        )}
       </div>
     </li>
   );

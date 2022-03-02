@@ -23,6 +23,8 @@ export interface my {
 
   // 총 게시글 수
   myTotalArticle: number;
+  // 현재 게시글 페이지
+  myArticleCurrentPage: number;
   
   myConcertCommentTotalPage: number;
   myConcertCommentCurrentPage: number;
@@ -30,6 +32,13 @@ export interface my {
   // 총 댓글수
   myTotalConcertComment: number;
   myTotalArticleComment: number;
+
+  // loading 관리
+  isLoadingState?: {
+    myArticle?: boolean;
+    myConcertComment?: boolean;
+    myArticleComment?: boolean;
+  }
 
   // 버튼 ON/OFF 관리
   btnSwitchState?: {
@@ -85,11 +94,14 @@ const initialState: my = {
   myArticleCommentCurrentComment: 0,
   myTotalArticle: 0,
 
+  myArticleCurrentPage: 1,
+
 
   myTotalArticleComment: 0,
   articleCommentInfo: {},
 
   btnSwitchState: {},
+  isLoadingState: {}, 
 
   myConcertCommentTotalPage: 0, 
   myConcertCommentCurrentPage: 1,
@@ -158,6 +170,12 @@ const mySlice = createSlice({
     getBtnSwitchState: (state: my, { payload }: PayloadAction<object>) => { 
       state.btnSwitchState = payload;
     }, 
+    getMyArticleCurrentPage: (state: my, { payload }: PayloadAction<number>) => { 
+      state.myArticleCurrentPage = payload;
+    }, 
+    setIsLoadingState: (state: my, { payload }: PayloadAction<object>) => {
+      state.isLoadingState = payload;
+    },
   }
 });
 
@@ -182,8 +200,10 @@ export const {
   getMyTotalArticleComment,
   getMyArticleCommentTotalPage,
   getMyArticleCommentInfo,
+  getMyArticleCurrentPage,
 
-  getBtnSwitchState
+  getBtnSwitchState,
+  setIsLoadingState,
 } = mySlice.actions;
 
 export default mySlice.reducer;

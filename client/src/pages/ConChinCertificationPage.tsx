@@ -1,12 +1,9 @@
-import MyProfileBox from '../components/MyPage/MyProfileBox';
-import Footer from '../components/Footer';
-
 /* CSS import */
 import check from '../images/check.png';
 /* Store import */
 import { RootState } from '../index';
 import {
-  logout,
+  loginCheck,
   getUserInfo,
   getCertificateInfo,
   getPhoneCertificatePassInfo,
@@ -21,6 +18,9 @@ import {
   insertDeliverText,
 } from '../store/ModalSlice';
 import { getBtnSwitchState } from '../store/MySlice';
+/* Component import */
+import MyProfileBox from '../components/MyPage/MyProfileBox';
+import Footer from '../components/Footer';
 /* Library import */
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -107,19 +107,32 @@ function ConChinCertificationPage() {
 
   // 인증번호 받기 버튼 핸들러
   const handleGetConfirmNumber = async () => {
-    // 인증번호 받기 버튼을 눌렀다!
-    setCheckImg(true);
-    dispatch(getPhoneCertificatePassInfo(false));
 
-    dispatch(showPhoneConfirmNumberModal(true));
-    dispatch(getCertificateInfo(conchinCertificateInfo.phoneNumber));
+    const firstThreeNumber = conchinCertificateInfo.phoneNumber[0] + conchinCertificateInfo.phoneNumber[1] + conchinCertificateInfo.phoneNumber[2]
 
-    // 입력된 휴대번호로 6자리 인증번호를 전송한다
-    const response = await axios.post(
-      `${process.env.REACT_APP_API_URL}/user/safe`,
-      { phone_number: `${conchinCertificateInfo.phoneNumber}` },
-      { withCredentials: true },
-    );
+    // 입력한 휴대폰 앞에 세자리가 '010'이 아니거나 11자리 휴대폰 번호를 입력하지 않았다면, 다음을 실행한다.
+    if(firstThreeNumber !== '010' || conchinCertificateInfo.phoneNumber.length !== 11) {
+      dispatch(insertAlertText(`휴대폰 번호를 정확히 입력해주세요! 🙂`));
+      dispatch(showAlertModal(true))
+    }
+    // 휴대폰 번호가 정확히 입력되었다면 다음을 실행한다
+    else {
+      // 인증번호 받기 버튼을 눌렀다!
+      setCheckImg(true);
+      dispatch(getPhoneCertificatePassInfo(false));
+      
+      dispatch(showPhoneConfirmNumberModal(true));
+      dispatch(getCertificateInfo(conchinCertificateInfo.phoneNumber));
+      
+      // 입력된 휴대번호로 6자리 인증번호를 전송한다
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/user/safe`,
+        { phone_number: `${conchinCertificateInfo.phoneNumber}` },
+        { withCredentials: true },
+      );
+      // Axios 결과 로그아웃 상태시 MainPage Redirect
+      if(response.data.message === 'Unauthorized userInfo!') return dispatch(loginCheck(false));
+    }
   };
 
   // 인증 완료 버튼 핸들러
@@ -147,6 +160,8 @@ function ConChinCertificationPage() {
         },
         { withCredentials: true },
       );
+      // Axios 결과 로그아웃 상태시 MainPage Redirect
+      if(response.data.message === 'Unauthorized userInfo!') return dispatch(loginCheck(false));
       
       // 콘친 인증 성공 모달 OPEN
       dispatch(insertAlertText(`(${userInfo.username})님의 콘친 인증이 완료되었습니다! 🙂`));
@@ -212,7 +227,6 @@ function ConChinCertificationPage() {
             </div>
             <div id='birthdayBox'>
               <select 
-                // size={10}
                 className='short'
                 onChange={inputDropdownValueHandler('birthYear')}
               >
@@ -256,6 +270,7 @@ function ConChinCertificationPage() {
               <option value='여자'> 여자 </option>
             </select>
           </div>
+          {/* 휴대폰 인증 Box */}
           <div id='phoneBox'>
             <div id='titleWrapper'>
               <p className='title'>휴대전화</p>
@@ -265,7 +280,7 @@ function ConChinCertificationPage() {
               <div className='recieveWrapper'>
                 <input
                   className='number'
-                  placeholder='전화번호는 숫자만 입력해주세요.'
+                  placeholder='숫자만 입력해주세요. ex) 01077776666'
                   onChange={inputValueHandler('phoneNumber')}
                 />
                 <img
@@ -274,6 +289,7 @@ function ConChinCertificationPage() {
                   }
                   src={check}
                 />
+                {/* 휴대폰 인증번호 받기 버튼 */}
                 <button
                   className='receiveBtn'
                   onClick={() => {

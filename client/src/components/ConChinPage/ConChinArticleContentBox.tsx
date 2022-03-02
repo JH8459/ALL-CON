@@ -6,36 +6,65 @@ import ConChinArticleCommentBox from './ConChinArticleCommentBox';
 import ConChinCommentPagination from './ConChinCommentPagination';
 /* Store import */
 import { RootState } from '../../index';
+import { loginCheck } from '../../store/AuthSlice';
 import {
   insertAlertText,
   showConChinProfileModal,
   showAlertModal,
   showConChinWritingModal,
 } from '../../store/ModalSlice';
-import { setTarget } from '../../store/MainSlice';
-/* Library import */
-import axios from 'axios';
-import { useEffect, useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
 import {
   setAllArticles,
   setTargetArticle,
   setArticleCurPage,
   setArticleTotalPage,
-  setArticleOrder,
+  setTargetArticlesUserInfo,
+  setIsLoadingArticle,
 } from '../../store/ConChinSlice';
+/* Library import */
+import axios from 'axios';
+import { useEffect, useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 
 function ConChinArticleContentBox() {
   const dispatch = useDispatch();
   const { articleOrder, targetArticle, targetArticlesUserInfo } = useSelector(
     (state: RootState) => state.conChin,
   );
-
   const { target } = useSelector((state: RootState) => state.main);
   const { userInfo } = useSelector((state: RootState) => state.auth);
+
+  /* 지역상태 interface */
+  interface ConChinTargetArticle {
+    concert_id?: number;
+    content?: string;
+    createdAt?: Date;
+    id?: number;
+    image?: string;
+    member_count?: number;
+    title?: string;
+    total_comment?: number;
+    total_member?: number;
+    updatedAt?: Date;
+    user_id?: number;
+    view?: number;
+    User?: {
+      username?: string;
+      image?: string;
+    };
+    activation?: boolean;
+  }
+
+  /* useState => 지역상태 */
+  const [conChinTargetArticle, setConChinTargetArticle] =
+    useState<ConChinTargetArticle>({});
+
   /* 유저정보 보기 핸들러 */
   const showUserProfile = () => {
-    dispatch(showConChinProfileModal(true));
+    if (targetArticle.user_id !== undefined) {
+      getTargetArticlesUserInfo(targetArticle.user_id);
+      dispatch(showConChinProfileModal(true));
+    }
   };
 
   /* 글 수정하기 핸들러 */
@@ -43,7 +72,6 @@ function ConChinArticleContentBox() {
     if (userInfo.id === targetArticle.user_id) {
       dispatch(showConChinWritingModal(true));
     } else {
-      // console.log('ConChinArticleContentBox=> 당신이 작성한 글이 아닙니다.');
     }
   };
 
@@ -53,22 +81,24 @@ function ConChinArticleContentBox() {
       dispatch(insertAlertText('글을 삭제합니다. 😖'));
       dispatch(showAlertModal(true));
       deleteArticle();
-      dispatch(setTargetArticle({}));
       dispatch(setArticleCurPage(1));
       getTargetArticles();
     } else {
-      // console.log('ConChinArticleContentBox=> 당신이 작성한 글이 아닙니다.');
     }
   };
 
   /* 글 삭제하기 핸들러 */
   const deleteArticle = async () => {
     try {
-      await axios.delete(
+      const response = await axios.delete(
         `${process.env.REACT_APP_API_URL}/concert/${target.id}/article/${targetArticle.id}`,
         { withCredentials: true },
       );
-      getAllArticles();
+      // Axios 결과 로그아웃 상태시 MainPage Redirect
+      if (response.data.message === 'Unauthorized userInfo!')
+        return dispatch(loginCheck(false));
+
+      getTargetArticles();
     } catch (err) {
       console.log(err);
     }
@@ -79,21 +109,15 @@ function ConChinArticleContentBox() {
     dispatch(showAlertModal(true));
   };
 
-  /* 전체 게시물 받아오기 */
-  const getAllArticles = async () => {
+  /* 게시물 작성자 유저정보 조회 핸들러 => getTargetArticlesInfo 부분 수정하고 지워야함 */
+  const getTargetArticlesUserInfo = async (id: number) => {
     try {
       const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/concert/article?order=${articleOrder}`,
+        `${process.env.REACT_APP_API_URL}/user/other/${id}`,
         { withCredentials: true },
       );
       if (response.data) {
-        // dispatch(setAllArticles(response.data.data.articleInfo));
-        dispatch(setArticleTotalPage(response.data.data.totalPage));
-
-        dispatch(setArticleCurPage(1));
-        dispatch(setTargetArticle({}));
-      } else {
-        // console.log('없거나 실수로 못가져왔어요.');
+        dispatch(setTargetArticlesUserInfo(response.data.data.userInfo));
       }
     } catch (err) {
       console.log(err);
@@ -103,17 +127,19 @@ function ConChinArticleContentBox() {
   /* 타겟 게시물 받아오기 */
   const getTargetArticles = async () => {
     try {
+      /* 로딩 상태 세팅 article */
+      dispatch(setIsLoadingArticle(false));
       const response = await axios.get(
         `${process.env.REACT_APP_API_URL}/concert/${target.id}/article?order=${articleOrder}`,
         { withCredentials: true },
       );
       if (response.data) {
-        dispatch(setTargetArticle({}));
+        dispatch(setIsLoadingArticle(true));
+        dispatch(setAllArticles([]));
         dispatch(setAllArticles(response.data.data.articleInfo));
         dispatch(setArticleTotalPage(response.data.data.totalPage));
-        dispatch(setArticleCurPage(1));
+        dispatch(setTargetArticle({}));
       } else {
-        // console.log('ConChinPostingBox=> 없거나 실수로 못가져왔어요.');
       }
     } catch (err) {
       console.log(err);
@@ -136,20 +162,26 @@ function ConChinArticleContentBox() {
     return setDay;
   };
 
+  /* targetArticle 변경시 지역상태 conChinTargetArticle 변경  */
+  useEffect(() => {
+    setConChinTargetArticle(targetArticle);
+  }, [targetArticle]);
+
   return (
     <>
-      {targetArticle !== undefined && Object.keys(targetArticle).length > 0 ? (
-        <div id='conChinArticleContentBox' key={targetArticle.id}>
+      {conChinTargetArticle !== undefined &&
+      Object.keys(conChinTargetArticle).length > 0 ? (
+        <div id='conChinArticleContentBox' key={conChinTargetArticle.id}>
           <div id='titleBox'>
             <div className='title'>
-              <h1 className='text'>{targetArticle.title}</h1>
+              <h1 className='text'>{conChinTargetArticle.title}</h1>
             </div>
             <div id='profileBox'>
               <img
                 className='img'
                 src={
-                  targetArticlesUserInfo.image
-                    ? targetArticlesUserInfo.image
+                  conChinTargetArticle.User
+                    ? conChinTargetArticle.User.image
                     : defaultImage
                 }
                 onClick={
@@ -159,8 +191,8 @@ function ConChinArticleContentBox() {
                 }
               />
               <p className='nickName'>
-                {targetArticlesUserInfo.username
-                  ? targetArticlesUserInfo.username
+                {conChinTargetArticle.User
+                  ? conChinTargetArticle.User.username
                   : '탈퇴한 사용자'}
               </p>
             </div>
@@ -168,33 +200,33 @@ function ConChinArticleContentBox() {
           <div id='contentBox'>
             <div id='viewBox'>
               <p className='view'>
-                등록일 : {handlePostedDate(targetArticle.createdAt)} | 조회수 :
-                {targetArticle.view !== undefined && targetArticle.view >= 0
-                  ? targetArticle.view
+                등록일 : {handlePostedDate(conChinTargetArticle.createdAt)} |
+                조회수 :
+                {conChinTargetArticle.activation === true
+                  ? conChinTargetArticle.view
                   : ' 종료'}
               </p>
             </div>
             <div id='modifyBox'>
               <p className='modifyBtn' onClick={showMyConChinWritingModal}>
-                {userInfo.id === targetArticle.user_id &&
-                targetArticle.view !== undefined &&
-                targetArticle.view >= 0
+                {userInfo.id === conChinTargetArticle.user_id &&
+                conChinTargetArticle.activation === true
                   ? '수정'
                   : null}
               </p>
               <p className='deleteBtn' onClick={deleteMyArticle}>
-                {userInfo.id === targetArticle.user_id ? '삭제' : null}
+                {userInfo.id === conChinTargetArticle.user_id ? '삭제' : null}
               </p>
               <div id='memberBoxWrapper'>
                 <div className='memberBox'>
                   <img className='icon' src={groupImage} />
                   <div className='count'>
-                    {targetArticle.view !== undefined && targetArticle.view >= 0
-                      ? targetArticle.member_count
+                    {conChinTargetArticle.activation === true
+                      ? conChinTargetArticle.member_count
                       : '-'}
                     /
-                    {targetArticle.view !== undefined && targetArticle.view >= 0
-                      ? targetArticle.total_member
+                    {conChinTargetArticle.activation === true
+                      ? conChinTargetArticle.total_member
                       : '-'}
                   </div>
                 </div>
@@ -202,17 +234,10 @@ function ConChinArticleContentBox() {
             </div>
             <div id='content'>
               <div id='imgWrapper'>
-                <img
-                  className='img'
-                  src={
-                    targetArticle.image
-                      ? targetArticle.image
-                      : articleDefaultImage
-                  }
-                />
+                <img className='img' src={conChinTargetArticle.image} />
               </div>
               <div className='textWrapper'>
-                <p className='text'>{targetArticle.content}</p>
+                <p className='text'>{conChinTargetArticle.content}</p>
               </div>
             </div>
             <div id='commentWrapper'>

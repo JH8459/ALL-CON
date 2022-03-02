@@ -1,5 +1,6 @@
 /* Module import */
 import ScrollToTop from './components/ScrollToTop';
+import LoginRedirect from './components/LoginRedirect';
 /* animation import */
 import 'animate.css';
 /* CSS import */
@@ -12,6 +13,7 @@ import authSlice, { auth } from './store/AuthSlice';
 import modalSlice, { modal } from './store/ModalSlice';
 import headerSlice, { header } from './store/HeaderSlice';
 import mainSlice, { main } from './store/MainSlice';
+import ConcertSlice, { concert } from './store/ConcertSlice';
 import mySlice, { my } from './store/MySlice';
 import conChinSlice, { conChin } from './store/ConChinSlice';
 import ConcertAlarmSlice, { concertAlarm } from './store/ConcertAlarmSlice';
@@ -44,6 +46,7 @@ const reducers = combineReducers({
   modal: modalSlice,
   header: headerSlice,
   main: mainSlice,
+  concert: ConcertSlice,
   my: mySlice,
   conChin: conChinSlice,
   concertAlarm: ConcertAlarmSlice,
@@ -71,6 +74,7 @@ export interface RootState {
   modal: modal;
   header: header;
   main: main;
+  concert: concert;
   conChin: conChin;
   my: my;
   concertAlarm: concertAlarm;
@@ -80,13 +84,14 @@ export interface RootState {
 
 /* persist store 세팅 (새로고침, 종료해도 지속될 store) */
 export let persistor = persistStore(store);
-//persistor.purge();
+// persistor.purge();
 
 ReactDOM.render(
   <Provider store={store}>
     <PersistGate loading={null} persistor={persistor}>
       <Router>
         <ScrollToTop />
+        <LoginRedirect />
         <App />
       </Router>
     </PersistGate>

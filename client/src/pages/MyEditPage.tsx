@@ -5,7 +5,7 @@ import resignArrow from '../images/resignArrow.png';
 import check from '../images/check.png';
 /* Store import */
 import { RootState } from '../index';
-import { getUserInfo } from '../store/AuthSlice';
+import { loginCheck, getUserInfo } from '../store/AuthSlice';
 import { showAlertModal, insertAlertText, insertBtnText, showSuccessModal, showMyProfileResignMembershipModal } from '../store/ModalSlice';
 import { setMyIntroductionState, getBtnSwitchState } from '../store/MySlice';
 /* Library import */
@@ -45,6 +45,9 @@ function MyEditPage() {
    const [isPassDuplication, setIsPassDuplication] = useState<boolean>(false);
    // 중복확인 버튼 클릭 유무 판단 상태
    const [duplicationBtn, setDuplicationBtn] = useState<boolean>(false);
+
+   // 중복확인 결과가 나왔다면,
+   const [duplicationResultBuffer, setDuplicationResultBuffer] = useState<boolean>(false);
 
    // 유효성 검사 상태
    const [nameErr, setNameErr] = useState<boolean>(true);
@@ -162,12 +165,15 @@ function MyEditPage() {
   const duplicationHandler = async () => {
     try {
       setDuplicationBtn(true)
+      setDuplicationResultBuffer(false);
 
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL}/user/username`,
         { username: changeUserInfo.username || userInfo.username },
         { withCredentials: true }
       );
+      // Axios 결과 로그아웃 상태시 MainPage Redirect
+      if(response.data.message === 'Unauthorized userInfo!') return dispatch(loginCheck(false));
 
       // 중복되지 않은 닉네임이라면, 다음을 실행한다
       if(response.data.state) {
@@ -176,7 +182,7 @@ function MyEditPage() {
         dispatch(insertBtnText('확인'));
         dispatch(showSuccessModal(true));
 
-        setIsPassDuplication(true)
+        setIsPassDuplication(true);
       }
       // 중복된 닉네임이라면, 다음을 실행한다
       else {
@@ -185,7 +191,8 @@ function MyEditPage() {
         dispatch(insertAlertText(`이미 사용중인 닉네임입니다! 🙂`));
         dispatch(showAlertModal(true));
 
-        setIsPassDuplication(false)
+        setIsPassDuplication(false);
+        setDuplicationResultBuffer(true);
       }
     } catch (err) {
       // console.log(err);
@@ -199,23 +206,30 @@ function MyEditPage() {
 
   // [PATCH] 변경 완료 버튼 핸들러
   const changeUserProfileHandler = async () => {
+
+    // console.log('----- (수정) 자기소개:', changeUserInfo.introduction)
+    // console.log('----- (수정) 이름:', changeUserInfo.username)
+    // console.log('----- (수정) 비밀번호:', changeUserInfo.password)
+
     try {
-      let finalIntroduction = myIntroduction.replace(' ', '')
       // 만약 변경된 유저의 정보가 모두 유효하다면, 다음을 실행한다
       if (isAllValid(changeUserInfo)) {
             const response = await axios.patch(
               `${process.env.REACT_APP_API_URL}/user/me`,
               { 
-                introduction: finalIntroduction,
+                introduction: myIntroduction,
                 username: changeUserInfo.username || userInfo.username, 
                 password: changeUserInfo.password 
               },
               { withCredentials: true }
             );
+            // Axios 결과 로그아웃 상태시 MainPage Redirect
+            if(response.data.message === 'Unauthorized userInfo!') return dispatch(loginCheck(false));
+            
             // 입력값들을 reset
             resetInput();
 
-            dispatch(insertAlertText(`(${userInfo.username})님의 프로필이 변경되었습니다! 🙂`));
+            dispatch(insertAlertText(`(${changeUserInfo.username})님의 프로필이 변경되었습니다! 🙂`));
             dispatch(insertBtnText('확인'));
             dispatch(showSuccessModal(true));
 
@@ -290,49 +304,55 @@ function MyEditPage() {
               <input type='text' id='nickName' placeholder={userInfo.username} value={changeUserInfo.username} onChange={inputValueHandler('username')} onKeyPress={onKeyPress}/>
               <img
                   id={isPassDuplication ? 'checkImg' : 'hidden'}
-                  // id='checkImg'
                   src={check}
                 />
                 {/* 중복확인 버튼 */}
               <div id='duplicationCheck' onClick={duplicationHandler}> 중복확인 </div>
             </div>
-            {changeUserInfo.username === '' || changeUserInfo.username === userInfo.username
+            {
+              changeUserInfo.username === '' || changeUserInfo.username === userInfo.username
               ? null
               : nameErr
                 ? duplicationBtn
                   ? isPassDuplication
                     ? <div id='nicknamePass'>사용가능한 닉네임입니다.</div> 
-                    : <div id='nicknameErr'>이미 사용중인 닉네임입니다.</div> 
+                    : duplicationResultBuffer 
+                      ? <div id='nicknameErr'>이미 사용중인 닉네임입니다.</div> 
+                      : null
                   : <div id='nicknameErr'>닉네임 중복확인을 눌러주세요.</div> 
                 : <div id='nicknameErr'>사용할 수 없는 닉네임입니다.</div>
             }
           </div>
+          {/* 비밀번호 변경란 */}
           <div id='resetBox'>
             <div id='titleWrapper'>
               <p className='title'>비밀번호 변경</p>
             </div>
             {
               activationPassword
-              ? <input type='password' placeholder='비밀번호를 입력해주세요.' className='reset' value={changeUserInfo.password} onChange={inputValueHandler('password')} />
+              ? <form><input type='password' placeholder='비밀번호를 입력해주세요.' autoComplete='on' className='reset' value={changeUserInfo.password} onChange={inputValueHandler('password')} /> </form>
               : <input type='password' className='reset' placeholder='비밀번호를 변경할 수 없습니다.' disabled />
             }
-            {passwordErr
+            {
+              passwordErr
               ? <div id='passwordPass'> 사용가능한 비밀번호입니다. </div>
               : changeUserInfo.password === '' 
                 ? null
                 : <div id='passwordErr'> 비밀번호는 영문, 숫자만 가능하며 6~12자리로 입력해야 합니다. </div>
             }
           </div>
+          {/* 비밀번호 확인란 */}
           <div id='confirmBox'>
             <div id='titleWrapper'>
               <p className='title'>비밀번호 확인</p>
             </div>
             {
               activationPassword
-              ? <input type='password' placeholder='비밀번호를 확인해주세요.' className='confirm' value={changeUserInfo.confirmPassword} onChange={inputValueHandler('confirmPassword')} />
+              ? <form><input type='password' placeholder='비밀번호를 확인해주세요.' autoComplete='on' className='confirm' value={changeUserInfo.confirmPassword} onChange={inputValueHandler('confirmPassword')} /> </form>
               : <input type='password' className='confirm' placeholder='비밀번호를 변경할 수 없습니다.' disabled />
             }
-            {confirmPasswordErr
+            {
+              confirmPasswordErr
               ? <div id='confirmPasswordPass'> 비밀번호가 일치합니다. </div>
               : changeUserInfo.confirmPassword === '' 
                 ? null

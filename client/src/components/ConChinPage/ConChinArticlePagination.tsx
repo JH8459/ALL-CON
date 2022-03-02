@@ -3,8 +3,8 @@ import {
   setAllArticles,
   setArticleTotalPage,
   setArticleCurPage,
+  setIsLoadingArticle,
 } from '../../store/ConChinSlice';
-import { setTarget } from '../../store/MainSlice';
 import { RootState } from '../../index';
 /* Library import */
 import axios from 'axios';
@@ -17,16 +17,27 @@ function ConChinArticlePagination() {
     (state: RootState) => state.conChin,
   );
   const { target } = useSelector((state: RootState) => state.main);
-  const { articleOrder, allArticles, targetArticle } = useSelector(
-    (state: RootState) => state.conChin,
+  const { articleOrder } = useSelector((state: RootState) => state.conChin);
+
+  /* useState => 지역상태 */
+  const [conChinArticleCurPage, setConChinArticleCurPage] = useState<number>(0);
+  const [conChinPageArr, setConChinPageArr] = useState<any[]>(
+    Array.from({ length: articleTotalPage }, (v, i) => i + 1),
   );
 
-  const pageArr = Array.from({ length: articleTotalPage }, (v, i) => i + 1);
+  /* 페이지 클릭시 페이지에 맞는 게시물 리스트 갱신 */
+  const getClickedPageNumber = (pageNum: number) => {
+    dispatch(setArticleCurPage(pageNum));
+    getPageArticles(pageNum);
+  };
 
+  /* 페이지에 맞는 게시물 받아오기 */
   const getPageArticles = async (pageNum: number) => {
     try {
+      /* 로딩 상태 세팅 article */
+      dispatch(setIsLoadingArticle(false));
       //페이지 길이가 1 이상일 때
-      if (pageArr.length > 0) {
+      if (conChinPageArr.length > 0) {
         //target이 없을 때, 전체 게시물에서 클릭한 pageNum 조회
         if (Object.keys(target).length === 0) {
           const response = await axios.get(
@@ -34,26 +45,24 @@ function ConChinArticlePagination() {
             { withCredentials: true },
           );
           if (response.data) {
+            dispatch(setIsLoadingArticle(true));
             dispatch(setAllArticles(response.data.data.articleInfo));
             dispatch(setArticleTotalPage(response.data.data.totalPage));
           } else {
-            // console.log(
-            //   'ConChinArticlePagination=> 없거나 실수로 못가져왔어요.',
-            // );
           }
         } else if (Object.keys(target).length > 0) {
+          /* 로딩 상태 세팅 article */
+          dispatch(setIsLoadingArticle(false));
           //target이 있을 때, target의 게시물에서 클릭한 pageNum 조회
           const response = await axios.get(
             `${process.env.REACT_APP_API_URL}/concert/${target.id}/article?order=${articleOrder}&pageNum=${pageNum}`,
             { withCredentials: true },
           );
           if (response.data) {
+            dispatch(setIsLoadingArticle(true));
             dispatch(setAllArticles(response.data.data.articleInfo));
             dispatch(setArticleTotalPage(response.data.data.totalPage));
           } else {
-            // console.log(
-            //   'ConChinArticlePagination=> 없거나 실수로 못가져왔어요.',
-            // );
           }
         }
       }
@@ -64,26 +73,28 @@ function ConChinArticlePagination() {
     }
   };
 
+  /* 현재 페이지에 맞는 게시물 리스트 갱신, 지역상태 할당 */
   useEffect(() => {
     getPageArticles(articleCurPage);
+    setConChinArticleCurPage(articleCurPage);
   }, [articleCurPage]);
-  useEffect(() => {
-    getPageArticles(articleCurPage);
-  }, [articleTotalPage]);
 
-  const getClickedPageNumber = (pageNum: number) => {
-    // console.log(pageNum);
-    dispatch(setArticleCurPage(pageNum));
-    getPageArticles(pageNum);
-  };
+  /* 전체 페이지 갱신 때마다 pagination 렌더링 */
+  useEffect(() => {
+    setConChinPageArr(
+      Array.from({ length: articleTotalPage }, (v, i) => i + 1),
+    );
+  }, [articleTotalPage]);
 
   return (
     <div id='pagination'>
-      {pageArr.length > 0
-        ? pageArr.map((el, idx) => {
+      {conChinPageArr.length > 0
+        ? conChinPageArr.map((el, idx) => {
             return (
               <ul
-                className={articleCurPage === idx + 1 ? 'pageChosen' : 'page'}
+                className={
+                  conChinArticleCurPage === idx + 1 ? 'pageChosen' : 'page'
+                }
                 key={idx}
                 onClick={() => {
                   getClickedPageNumber(el);

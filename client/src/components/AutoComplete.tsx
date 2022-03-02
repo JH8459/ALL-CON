@@ -2,10 +2,13 @@
 import search from '../images/search.png';
 /* Store import */
 import { RootState } from '../index';
-import { setTarget, setOrder, setPassToConcert } from '../store/MainSlice';
-import { showConcertModal, showSuccessModal } from '../store/ModalSlice';
-import { insertAlertText, insertBtnText } from '../store/ModalSlice';
-import { setHeaderAllConcerts } from '../store/HeaderSlice';
+import {
+  setTarget,
+  setOrder,
+  setPassToConcert,
+  setAllConcerts,
+} from '../store/MainSlice';
+import { showConcertModal } from '../store/ModalSlice';
 /* Library import */
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -15,10 +18,7 @@ import { useSelector, useDispatch } from 'react-redux';
 function AutoComplete() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { allConcerts } = useSelector((state: RootState) => state.main);
-  const { headerAllConcerts, headerIsRendered } = useSelector(
-    (state: RootState) => state.header,
-  );
+  const { headerAllConcerts } = useSelector((state: RootState) => state.header);
 
   const [hasText, setHasText] = useState<boolean>(false);
   const [inputValue, setInputValue] = useState<string>('');
@@ -37,6 +37,26 @@ function AutoComplete() {
         deselectedOptions = headerAllConcerts.map(el => {
           return el.title;
         });
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  /*전체 콘서트 받아오기(정렬순:view) */
+  const getAllConcertsClick = async (clickedOption?: any) => {
+    try {
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL}/concert?order=view`,
+        { withCredentials: true },
+      );
+      const clickedIdx = deselectedOptions.indexOf(clickedOption);
+      if (response.data) {
+        /* 서버 응답값이 있다면 & target 상태 변경 */
+        dispatch(setAllConcerts(response.data.data.concertInfo));
+        dispatch(setOrder('view'));
+        dispatch(setTarget({}));
+        dispatch(setTarget(headerAllConcerts[clickedIdx]));
       }
     } catch (err) {
       console.log(err);
@@ -82,10 +102,10 @@ function AutoComplete() {
     const clickedIdx = deselectedOptions.indexOf(clickedOption);
 
     //headerAllConcerts에 clickedIdx로 접근하여 target 변경
-
-    dispatch(insertAlertText('관련 콘서트 페이지로 이동합니다! 🙂'));
-    dispatch(insertBtnText('확인'));
-    dispatch(showSuccessModal(true));
+    getAllConcertsClick(clickedOption);
+    // dispatch(insertAlertText('관련 콘서트 페이지로 이동합니다! 🙂'));
+    // dispatch(insertBtnText('확인'));
+    // dispatch(showSuccessModal(true));
     dispatch(setTarget(headerAllConcerts[clickedIdx]));
     dispatch(setPassToConcert(true));
 

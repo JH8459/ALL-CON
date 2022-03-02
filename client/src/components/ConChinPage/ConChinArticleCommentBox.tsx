@@ -1,9 +1,11 @@
 /* CSS import */
+import LoadingImage from '../../images/spinner.gif';
 import shield from '../../images/shield.png';
 import comment from '../../images/comment.png';
 import noComment from '../../images/no_comment_img.png';
 /* Store import */
 import { RootState } from '../../index';
+import { loginCheck } from '../../store/AuthSlice';
 import {
   showAlertModal,
   insertAlertText,
@@ -16,13 +18,11 @@ import {
   setConChinTotalNum,
   setConChinComment,
   setConChinTotalComments,
+  setConChinPageNum,
 } from '../../store/ConChinCommentSlice';
 import {
   setTargetArticlesUserInfo,
-  setAllArticles,
-  setArticleCurPage,
-  setArticleTotalPage,
-  setTargetArticle,
+  setIsLoadingArticleComment,
 } from '../../store/ConChinSlice';
 /* Library import */
 import axios, { AxiosError } from 'axios';
@@ -33,11 +33,47 @@ function ConChinArticleCommentBox() {
   const dispatch = useDispatch();
   const { isLogin, userInfo } = useSelector((state: RootState) => state.auth);
   const { target } = useSelector((state: RootState) => state.main);
-  const { targetArticle, articleOrder } = useSelector(
+  const { targetArticle, articleOrder, isLoadingArticleComment } = useSelector(
     (state: RootState) => state.conChin,
   );
-  const { conChinPageNum, conChinPageAllComments, conChinComment } =
-    useSelector((state: RootState) => state.conChinComments);
+  const {
+    conChinPageNum,
+    conChinPageAllComments,
+    conChinComment,
+    conChinTotalComments,
+  } = useSelector((state: RootState) => state.conChinComments);
+
+  /* 지역상태 interface */
+  interface ConChinTargetArticle {
+    concert_id?: number;
+    content?: string;
+    createdAt?: Date;
+    id?: number;
+    image?: string;
+    member_count?: number;
+    title?: string;
+    total_comment?: number;
+    total_member?: number;
+    updatedAt?: Date;
+    user_id?: number;
+    view?: number;
+    User?: {
+      username?: string;
+      image?: string;
+    };
+    activation?: boolean;
+  }
+
+  /* useState => 지역상태 */
+  const [conChinConChinPageAllComments, setConChinConChinPageAllComments] =
+    useState<any[]>([]);
+  const [conChinTargetArticle, setConChinTargetArticle] =
+    useState<ConChinTargetArticle>({});
+  const [conChinConChinTotalComments, setConChinConChinTotalComments] =
+    useState<Number>(0);
+  const [conChinIsLoadingArticleComment, setConChinIsLoadingArticleComment] =
+    useState<boolean>(false);
+
   /* 댓글 작성 인풋 && 작성 버튼 클릭 여부 */
   const [inputComment, setInputComment] = useState<string>('');
   const [isClick, setIsClick] = useState<boolean>(false);
@@ -53,14 +89,6 @@ function ConChinArticleCommentBox() {
   const [editMode, setEditMode] = useState<boolean>(false);
   const [clickId, setClickId] = useState<number>(0);
   const [editComment, setEditComment] = useState<string>('');
-
-  useEffect(() => {
-    getAllComments();
-  }, [targetArticle, conChinPageNum]);
-
-  useEffect(() => {
-    getTargetArticles();
-  }, [isClick]);
 
   /* 인풋 체인지 핸들러 */
   const inputChangeHandler = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -104,7 +132,7 @@ function ConChinArticleCommentBox() {
       if (totalByte >= maxByte) setByteError(true);
       else setByteError(false);
     } else {
-    /* 댓글 수정 입력 */
+      /* 댓글 수정 입력 */
       setEditByteLength(totalByte);
       /* byte 길이에 따라 에러 상태 변경 */
       if (totalByte >= maxByte) {
@@ -168,6 +196,10 @@ function ConChinArticleCommentBox() {
         { content: result },
         { withCredentials: true },
       );
+      // Axios 결과 로그아웃 상태시 MainPage Redirect
+      if (response.data.message === 'Unauthorized userInfo!')
+        return dispatch(loginCheck(false));
+
       /* 서버의 응답결과에 유효한 값이 있다면 댓글 작성 성공 */
       if (response.data) {
         /* 클릭 상태 변경 후 알람창 생성 */
@@ -176,7 +208,9 @@ function ConChinArticleCommentBox() {
         dispatch(insertAlertText('댓글이 작성되었습니다! 🙂'));
         dispatch(insertBtnText('확인'));
         dispatch(showSuccessModal(true));
-        getTargetArticles();
+        getAllComments();
+        dispatch(setConChinPageNum(0));
+        dispatch(setConChinPageNum(1));
       }
     } catch (err) {
       const error = err as AxiosError;
@@ -200,6 +234,10 @@ function ConChinArticleCommentBox() {
         { content: result },
         { withCredentials: true },
       );
+      // Axios 결과 로그아웃 상태시 MainPage Redirect
+      if (response.data.message === 'Unauthorized userInfo!')
+        return dispatch(loginCheck(false));
+
       /* 서버의 응답결과에 유효한 값이 있다면 댓글 수정 성공 */
       if (response.data) {
         /* 클릭 상태 변경 후 알람창 생성 */
@@ -209,6 +247,7 @@ function ConChinArticleCommentBox() {
         dispatch(insertAlertText('댓글이 수정되었습니다! 🙂'));
         dispatch(insertBtnText('확인'));
         dispatch(showSuccessModal(true));
+        getAllComments();
       }
     } catch (err) {
       const error = err as AxiosError;
@@ -229,6 +268,10 @@ function ConChinArticleCommentBox() {
         `${process.env.REACT_APP_API_URL}/concert/${target.id}/article/${targetArticle.id}/comment/${e.currentTarget.id}`,
         { withCredentials: true },
       );
+      // Axios 결과 로그아웃 상태시 MainPage Redirect
+      if (response.data.message === 'Unauthorized userInfo!')
+        return dispatch(loginCheck(false));
+
       /* 서버의 응답결과에 유효한 값이 있다면 댓글 삭제 성공 */
       if (response.data) {
         /* 클릭 상태 변경 후 알람창 생성 */
@@ -238,6 +281,8 @@ function ConChinArticleCommentBox() {
         dispatch(insertAlertText('댓글이 삭제되었습니다! 🙂'));
         dispatch(insertBtnText('확인'));
         dispatch(showSuccessModal(true));
+        getAllComments();
+        dispatch(setConChinPageNum(1));
       }
     } catch (err) {
       const error = err as AxiosError;
@@ -254,6 +299,8 @@ function ConChinArticleCommentBox() {
   /* 모든 댓글 가져오기 함수 */
   const getAllComments = async () => {
     try {
+      /* 로딩 상태 세팅 articleComment */
+      dispatch(setIsLoadingArticleComment(false));
       /* response 변수에 서버 응답결과를 담는다 */
       const response = await axios.get(
         `${process.env.REACT_APP_API_URL}/concert/${target.id}/article/${targetArticle.id}/comment?pageNum=${conChinPageNum}`,
@@ -262,13 +309,16 @@ function ConChinArticleCommentBox() {
       /* 서버의 응답결과에 유효한 값이 담겨있다면 댓글 조회 성공*/
       if (response.data) {
         /* 모든 페이지수 & 모든 댓글목록을 전역 상태에 담는다 */
+        dispatch(setIsLoadingArticleComment(true));
         setIsClick(false);
         setInputComment('');
         dispatch(setConChinPageAllComments([]));
+        dispatch(setConChinTotalNum(0));
         dispatch(setConChinTotalNum(response.data.data.totalPage));
         dispatch(
           setConChinPageAllComments(response.data.data.articleCommentInfo),
         );
+        dispatch(setConChinTotalComments(response.data.data.totalComment));
       }
     } catch (err) {}
   };
@@ -305,27 +355,20 @@ function ConChinArticleCommentBox() {
     }
   };
 
-  /* 타겟 게시물 받아오기 */
-  const getTargetArticles = async () => {
-    try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/concert/${target.id}/article/${targetArticle.id}`,
-        { withCredentials: true },
-      );
-      if (response.data) {
-        dispatch(setTargetArticle(response.data.data.articleInfo));
-        dispatch(
-          setConChinTotalComments(response.data.data.articleInfo.total_comment),
-        );
-        dispatch(setArticleTotalPage(response.data.data.totalPage));
-        dispatch(setArticleCurPage(1));
-      } else {
-        // console.log('ConChinPostingBox=> 없거나 실수로 못가져왔어요.');
-      }
-    } catch (err) {
-      console.log(err);
-    }
-  };
+  /* conChinPageAllComments 변경시 지역상태 conChinConChinPageAllComments 변경  */
+  useEffect(() => {
+    setConChinConChinPageAllComments(conChinPageAllComments);
+  }, [conChinPageAllComments]);
+
+  /* conChinTotalComments 변경시 지역상태 conChinConChinTotalComments 변경  */
+  useEffect(() => {
+    setConChinConChinTotalComments(conChinTotalComments);
+  }, [conChinTotalComments]);
+
+  /* isLoadingArticleComment 변경시 지역상태 conChinIsLoadingArticleComment 변경  */
+  useEffect(() => {
+    setConChinIsLoadingArticleComment(isLoadingArticleComment);
+  }, [isLoadingArticleComment]);
 
   return (
     <div id='commentBox'>
@@ -378,11 +421,16 @@ function ConChinArticleCommentBox() {
         <div id='imgWrapper'>
           <img className='img' src={comment} alt='commentImg' />
         </div>
-        <h1 className='count'>{targetArticle.total_comment + ' 개의 댓글'}</h1>
+        <h1 className='count'>
+          {conChinConChinTotalComments !== undefined
+            ? conChinConChinTotalComments + ' 개의 댓글'
+            : '0 개의 댓글'}
+        </h1>
       </div>
       {/* 댓글 목록 map */}
-      {conChinPageAllComments.length > 0 ? (
-        conChinPageAllComments.map(el => (
+      {conChinConChinPageAllComments.length > 0 &&
+      conChinIsLoadingArticleComment === true ? (
+        conChinConChinPageAllComments.map(el => (
           <div className='box'>
             <div className='dateBox'>
               <div className='nickNameAndDateWrapper'>
@@ -475,11 +523,18 @@ function ConChinArticleCommentBox() {
             </div>
           </div>
         ))
-      ) : (
+      ) : conChinConChinPageAllComments.length === 0 &&
+        conChinIsLoadingArticleComment === true ? (
         <>
           <div className='emptyBox'>
             <div>댓글이 없습니다.</div>
             <img src={noComment} alt='noCommentImg' />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className='emptyBox'>
+            <img className='loadingImg' src={LoadingImage} alt='LoadingImage' />
           </div>
         </>
       )}

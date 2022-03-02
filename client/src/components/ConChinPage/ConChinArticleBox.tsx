@@ -1,40 +1,85 @@
 /* CSS import */
-import defaultImage from '../../images/default_image.jpg';
+import LoadingImage from '../../images/spinner.gif';
 import viewImage from '../../images/view.png';
 import groupImage from '../../images/group.png';
+import commentImage from '../../images/commentDots.png';
 import notFound from '../../images/notFound.jpg';
 import ConChinArticleOrderBox from './ConChinArticleOrderBox';
 import ConChinArticlePagination from './ConChinArticlePagination';
 /* Store import */
 import { RootState } from '../../index';
 import {
-  setArticleOrder,
-  setAllArticles,
   setArticleTotalPage,
   setTargetArticle,
-  setTargetArticlesUserInfo,
-  setArticleRendered,
-  setArticleCurPage,
+  setIsLoadingConChin,
+  setIsLoadingArticleComment,
 } from '../../store/ConChinSlice';
 import {
   setConChinPageAllComments,
   setConChinTotalNum,
-  setConChinComment,
   setConChinPageNum,
+  setConChinTotalComments,
 } from '../../store/ConChinCommentSlice';
 import { setTarget } from '../../store/MainSlice';
 /* Library import */
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 function ConChinArticleBox() {
   const dispatch = useDispatch();
   const { target } = useSelector((state: RootState) => state.main);
-  const { allArticles, targetArticle, articleOrder, articleCurPage } =
+  const { allArticles, targetArticle, articleOrder, isLoadingArticle } =
     useSelector((state: RootState) => state.conChin);
-  const { conChinPageNum, conChinPageAllComments, conChinComment } =
-    useSelector((state: RootState) => state.conChinComments);
+
+  /* 지역상태 interface */
+  interface ConChinTarget {
+    id?: number;
+    exclusive?: string;
+    open_date?: Date;
+    post_date?: string;
+    image_concert?: string;
+    title?: string;
+    period?: string;
+    place?: string;
+    price?: string;
+    running_time?: string;
+    rating?: string;
+    link?: string;
+    view?: number;
+    total_comment?: number;
+    createdAt?: Date;
+    updatedAt?: Date;
+    activation?: boolean;
+  }
+
+  interface ConChinTargetArticle {
+    concert_id?: number;
+    content?: string;
+    createdAt?: Date;
+    id?: number;
+    image?: string;
+    member_count?: number;
+    title?: string;
+    total_comment?: number;
+    total_member?: number;
+    updatedAt?: Date;
+    user_id?: number;
+    view?: number;
+    User?: {
+      username?: string;
+      image?: string;
+    };
+    activation?: boolean;
+  }
+
+  /* useState => 지역상태 */
+  const [conChinTarget, setConChinTarget] = useState<ConChinTarget>({});
+  const [conChinAllArticles, setConChinAllArticles] = useState<any[]>([]);
+  const [conChinTargetArticle, setConChinTargetArticle] =
+    useState<ConChinTargetArticle>({});
+  const [conChinIsLoadingArticle, setConChinIsLoadingArticle] =
+    useState<boolean>(false);
 
   /* 게시물에 관련된 콘서트 정보 조회 핸들러 */
   const getTargetArticlesConcert = async (id: number) => {
@@ -66,58 +111,38 @@ function ConChinArticleBox() {
     }
   };
 
-  /* 게시물 작성자 유저정보 조회 핸들러 */
-  const getTargetArticlesUserInfo = async (id: number) => {
-    try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/user/other/${id}`,
-        { withCredentials: true },
-      );
-      if (response.data) {
-        dispatch(setTargetArticlesUserInfo(response.data.data.userInfo));
-      }
-    } catch (err) {
-      console.log(err);
-    }
-  };
-
   /* 게시글 조회 핸들러 */
   const getTargetArticles = async () => {
     try {
-      /* 타겟에 종속된 게시물 정렬순표시 */
       const response = await axios.get(
         `${process.env.REACT_APP_API_URL}/concert/${target.id}/article?order=${articleOrder}`,
         { withCredentials: true },
       );
       if (response.data) {
-        dispatch(setAllArticles(response.data.data.articleInfo));
         dispatch(setArticleTotalPage(response.data.data.totalPage));
-        dispatch(setArticleCurPage(articleCurPage));
-        console.log(
-          'ConChinArticleOrderBox=> 타겟에 종속된 게시물을 보여줍니다.',
-        );
       }
     } catch (err) {
       console.log(err);
-      dispatch(setAllArticles([]));
-      dispatch(setArticleTotalPage(0));
     }
   };
 
   /* 모든 댓글 가져오기 함수 */
   const getAllComments = async (id: number) => {
     try {
+      /* 로딩 상태 세팅 articleComment */
+      dispatch(setIsLoadingArticleComment(false));
       /* response 변수에 서버 응답결과를 담는다 */
       const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/concert/${target.id}/article/${id}/comment?pageNum=${conChinPageNum}`,
+        `${process.env.REACT_APP_API_URL}/concert/${
+          target.id
+        }/article/${id}/comment?pageNum=${1}`,
         { withCredentials: true },
       );
       /* 서버의 응답결과에 유효한 값이 담겨있다면 댓글 조회 성공*/
       if (response.data) {
         /* 모든 페이지수 & 모든 댓글목록을 전역 상태에 담는다 */
-        // setIsClick(false);
-        // setInputComment('');
-        console.log(id);
+        dispatch(setIsLoadingArticleComment(true));
+        dispatch(setConChinTotalComments(response.data.data.totalComment));
         dispatch(setConChinPageAllComments([]));
         dispatch(setConChinTotalNum(response.data.data.totalPage));
         dispatch(
@@ -128,29 +153,50 @@ function ConChinArticleBox() {
     } catch (err) {}
   };
 
-  /* useEffect: 정렬순으로 전체 콘서트, 게시물 받아오기  */
+  /* target 변경시 지역상태 conChinTarget 변경  */
   useEffect(() => {
-    getTargetArticles();
+    setConChinTarget(target);
+  }, [target]);
+
+  /* targetArticle 변경시 지역상태 conChinTargetArticle 변경, 댓글 조회  */
+  useEffect(() => {
+    setConChinTargetArticle(targetArticle);
+    if (targetArticle.id !== undefined) getAllComments(targetArticle.id);
   }, [targetArticle]);
+
+  /* allArticles 변경시 지역상태 conChinAllArticles 변경  */
+  useEffect(() => {
+    setConChinAllArticles(allArticles);
+  }, [allArticles]);
+
+  /* isLoadingArticle 변경시 지역상태 conChinIsLoadingArticle 변경  */
+  useEffect(() => {
+    setConChinIsLoadingArticle(isLoadingArticle);
+  }, [isLoadingArticle]);
 
   return (
     <div id='conChinArticleBox'>
       <ConChinArticleOrderBox />
-      {allArticles !== undefined && allArticles.length > 0 ? (
+      {conChinAllArticles !== undefined && conChinAllArticles.length > 0 ? (
         <div
           id={
-            Object.keys(target).length === 0 ? 'articleBox' : 'articleBoxChosen'
+            Object.keys(conChinTarget).length === 0
+              ? 'articleBox'
+              : 'articleBoxChosen'
           }
         >
           {/*게시물 맵핑, 타겟이 없고 게시물만 있을 때 */}
-          {Object.keys(allArticles).length > 0 &&
-          Object.keys(target).length === 0 ? (
-            <div id={Object.keys(target).length === 0 ? 'box' : 'boxChosen'}>
-              {allArticles.map(article => {
+          {Object.keys(conChinAllArticles).length > 0 &&
+          Object.keys(conChinTarget).length === 0 &&
+          conChinIsLoadingArticle === true ? (
+            <div
+              id={Object.keys(conChinTarget).length === 0 ? 'box' : 'boxChosen'}
+            >
+              {conChinAllArticles.map(article => {
                 return (
                   <ul
                     className={
-                      article.id === targetArticle.id
+                      article.id === conChinTargetArticle.id
                         ? 'articleChosen'
                         : 'article'
                     }
@@ -158,36 +204,54 @@ function ConChinArticleBox() {
                     onClick={() => {
                       getTargetArticlesInfo(article.id);
                       getTargetArticlesConcert(article.concert_id);
-                      getTargetArticlesUserInfo(article.user_id);
-                      getAllComments(article);
-                      dispatch(setConChinPageNum(1));
                     }}
                   >
-                    <img
-                      className='thumbNail'
-                      src={
-                        article.image !== null ? article.image : defaultImage
-                      }
-                    ></img>
+                    {article.activation === false ? (
+                      <div
+                        className={
+                          article.id === conChinTargetArticle.id
+                            ? 'endArticleChosen'
+                            : 'endArticle'
+                        }
+                      >
+                        <p className='endTitle'>종료된 게시물</p>
+                      </div>
+                    ) : null}
+
+                    <img className='thumbNail' src={article.image}></img>
+                    <div className='commentBox'>
+                      <img className='icon' src={commentImage} />
+                      <div className='count'>{article.total_comment}</div>
+                    </div>
                     <div id='conChinmemberBoxWrapper'>
                       <div className='memberBox'>
                         <img className='icon' src={groupImage} />
                         <div className='count'>
-                          {article.view >= 0 ? article.member_count : '-'}/
-                          {article.view >= 0 ? article.total_member : '-'}
+                          {article.activation === true
+                            ? article.member_count
+                            : '-'}
+                          /
+                          {article.activation === true
+                            ? article.total_member
+                            : '-'}
                         </div>
                       </div>
                     </div>
                     <div
                       className={
-                        article.id === targetArticle.id
+                        article.id === conChinTargetArticle.id
                           ? 'titleChosen'
                           : 'title'
+                      }
+                      style={
+                        article.activation === true
+                          ? { backgroundColor: 'white' }
+                          : { backgroundColor: '$gray2' }
                       }
                     >
                       <img className='icon' src={viewImage} />
                       <p className='count'>
-                        {article.view >= 0 ? article.view : '종료'}
+                        {article.activation === true ? article.view : '종료'}
                       </p>
                       <p className='date'>
                         {article.createdAt.substring(0, 10)}
@@ -198,57 +262,78 @@ function ConChinArticleBox() {
                 );
               })}
             </div>
-          ) : Object.keys(target).length !== 0 &&
-            target !== undefined &&
-            target !== null &&
-            Object.keys(allArticles).length > 0 ? (
-            <div id={Object.keys(target).length === 0 ? 'box' : 'boxChosen'}>
+          ) : Object.keys(conChinTarget).length !== 0 &&
+            conChinTarget !== undefined &&
+            conChinTarget !== null &&
+            Object.keys(conChinAllArticles).length > 0 &&
+            conChinIsLoadingArticle === true ? (
+            <div
+              id={Object.keys(conChinTarget).length === 0 ? 'box' : 'boxChosen'}
+            >
               {/*게시물 맵핑, 타겟이 있고 게시물도 있을 때 */}
-              {allArticles.map(article => {
+              {conChinAllArticles.map(article => {
                 return (
                   <ul
                     className={
-                      article.id === targetArticle.id
+                      article.id === conChinTargetArticle.id
                         ? 'articleChosen'
                         : 'article'
                     }
                     key={article.id}
                     onClick={() => {
+                      getTargetArticles();
                       getTargetArticlesInfo(article.id);
                       getTargetArticlesConcert(article.concert_id);
-                      getTargetArticlesUserInfo(article.user_id);
-                      getAllComments(article);
                     }}
                   >
+                    {article.activation === false ? (
+                      <div
+                        className={
+                          article.id === conChinTargetArticle.id
+                            ? 'endArticleChosen'
+                            : 'endArticle'
+                        }
+                      >
+                        <p className='endTitle'>종료된 게시물</p>
+                      </div>
+                    ) : null}
                     <img
                       className={
-                        article.id === targetArticle.id
+                        article.id === conChinTargetArticle.id
                           ? 'thumbNailChosen'
                           : 'thumbNail'
                       }
-                      src={
-                        article.image !== null ? article.image : defaultImage
-                      }
+                      src={article.image}
                     ></img>
+                    <div className='commentBox'>
+                      <img className='icon' src={commentImage} />
+                      <div className='count'>{article.total_comment}</div>
+                    </div>
                     <div id='conChinmemberBoxWrapper'>
                       <div className='memberBox'>
                         <img className='icon' src={groupImage} />
                         <div className='count'>
-                          {article.view >= 0 ? article.member_count : '-'}/
-                          {article.view >= 0 ? article.total_member : '-'}
+                          {article.activation === true
+                            ? article.member_count
+                            : '-'}
+                          /
+                          {article.activation === true
+                            ? article.total_member
+                            : '-'}
                         </div>
                       </div>
                     </div>
                     <div
                       className={
-                        article.id === targetArticle.id
+                        article.id === conChinTargetArticle.id &&
+                        article.activation === true
                           ? 'titleChosen'
                           : 'title'
                       }
                     >
                       <img className='icon' src={viewImage} />
                       <p className='count'>
-                        {article.view >= 0 ? article.view : '종료'}
+                        {article.activation === true ? article.view : '종료'}
                       </p>
                       <p className='date'>
                         {article.createdAt.substring(0, 10)}
@@ -260,21 +345,39 @@ function ConChinArticleBox() {
               })}
             </div>
           ) : (
-            '게시물이 없습니다. '
+            <div id='articleBoxChosen'>
+              <div id='notFound'>
+                <img
+                  className='loadingImg'
+                  src={LoadingImage}
+                  alt='LoadingImage'
+                />
+              </div>
+            </div>
           )}
         </div>
-      ) : (
+      ) : Object.keys(conChinTarget).length !== 0 &&
+        conChinTarget !== undefined &&
+        conChinTarget !== null &&
+        Object.keys(conChinAllArticles).length === 0 &&
+        conChinIsLoadingArticle === true ? (
         <div id='articleBoxChosen'>
           <div id='notFound'>
             <p className='text'>게시물이 없습니다.</p>
             <img className='img' src={notFound} alt='notFound' />
           </div>
         </div>
+      ) : (
+        <div id='articleBoxChosen'>
+          <div id='notFound'>
+            <img className='loadingImg' src={LoadingImage} alt='LoadingImage' />
+          </div>
+        </div>
       )}
       {/*게시물 맵핑 */}
       <div
         id={
-          Object.keys(target).length === 0
+          Object.keys(conChinTarget).length === 0
             ? 'paginationWrapper'
             : 'paginationWrapperChosen'
         }

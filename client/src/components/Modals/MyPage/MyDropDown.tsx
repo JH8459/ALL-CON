@@ -1,24 +1,33 @@
 /* Store import */
 import { RootState } from '../../../index';
-import { setTarget, setTargetIdx, setOrder, setAllConcerts, setIsRendering } from '../../../store/MainSlice';
-import { setTargetArticle, setArticleRendered, setArticleCurPage } from '../../../store/ConChinSlice';
-import { logout, getUserInfo } from '../../../store/AuthSlice';
-import { setPageNum } from '../../../store/ConcertCommentSlice';
 import {
-  getCommentBtnType,
-  getArticleInfo,
-  getMyArticleTotalPage,
-  getMyConcertCommentTotalPage,
-  getMyConcertCommentInfo,
-  getMyTotalConcertComment,
-  getMyArticleCommentInfo,
-  getMyArticleCommentTotalPage,
-  getMyTotalArticleComment,
-  getBtnSwitchState,
-  getMyTotalArticle,
-  getMyConcertCommentCurrentPage
-} from '../../../store/MySlice';
-import { setAlarm, setEmailClick, setSmsClick } from '../../../store/ConcertAlarmSlice';
+  setPageAllComments,
+  setTotalNum,
+  setPageNum,
+} from '../../../store/ConcertCommentSlice';
+import {
+  setTarget,
+  setTargetIdx,
+  setOrder,
+  setAllConcerts,
+  setIsRendering,
+  setIsOrderClicked,
+  setPosterLoading,
+  setDetail,
+  setMainLoading,
+} from '../../../store/MainSlice';
+import { setMainTotalComments } from '../../../store/MainSlice';
+import {
+  setTargetArticle,
+  setArticleRendered,
+  setArticleCurPage,
+} from '../../../store/ConChinSlice';
+import { loginCheck, logout, getUserInfo } from '../../../store/AuthSlice';
+import {
+  setAlarm,
+  setEmailClick,
+  setSmsClick,
+} from '../../../store/ConcertAlarmSlice';
 import {
   showMyDropDown,
   showLoginModal,
@@ -26,6 +35,9 @@ import {
   showAlertModal,
   insertAlertText,
 } from '../../../store/ModalSlice';
+
+import { setIsLoadingState } from '../../../store/MySlice';
+
 /* Library import */
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
@@ -35,30 +47,102 @@ function MyDropDown() {
   /* dispatch / navigate */
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  
+
   /* useSelector */
+  const { target } = useSelector((state: RootState) => state.main);
+  const { pageNum } = useSelector((state: RootState) => state.concertComments);
+
   const { scrollCount } = useSelector((state: RootState) => state.header);
-  
+
   /* 지역상태 - useState */
   /* useEffect */
-  
+
   /* handler 함수 (기능별 정렬) */
   // 로그아웃 후 메인페이지 리다이렉트 핸들러
   const goHomeHandler = () => {
+    dispatch(setMainLoading(false));
     /* 메인페이지 상태 초기화 */
-    dispatch(setTarget({}));
-    dispatch(setTargetIdx(0));
-    dispatch(setOrder('view')); 
-    dispatch(setPageNum(1));
     dispatch(setIsRendering(false));
+    dispatch(setOrder('view'));
+    getAllConcerts('view');
+
     dispatch(setAlarm({}));
     dispatch(setEmailClick(false));
     dispatch(setSmsClick(false));
     /* 켜져있는 모달창 모두 종료 */
-    dispatch(showConcertModal(false)); // concertPage 모달창    
+    dispatch(showConcertModal(false)); // concertPage 모달창
     dispatch(showLoginModal(false));
     /* 홈으로 이동 */
-    navigate('/main');
+    setTimeout(() => {
+      navigate('/main');
+      dispatch(setMainLoading(true));
+    }, 500);
+  };
+
+  /*전체 콘서트 받아오기 */
+  const getAllConcerts = async (clickValue: string) => {
+    try {
+      /* 포스터 로딩 상태 세팅 */
+      dispatch(setPosterLoading(false));
+      dispatch(setIsOrderClicked(false));
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL}/concert?order=${clickValue}`,
+        { withCredentials: true },
+      );
+      if (response.data) {
+        /* 서버 응답값이 있다면 & target,targetIdx,pageNum 상태 변경 */
+        dispatch(setAllConcerts(response.data.data.concertInfo));
+        dispatch(setTarget(response.data.data.concertInfo[0]));
+        dispatch(setTargetIdx(0));
+        dispatch(setPageNum(1));
+        /* 상세 콘서트 받아오기 & 렌더링 상태 변경 */
+        dispatch(setIsRendering(true));
+        dispatch(setPosterLoading(true));
+        dispatch(setIsOrderClicked(true));
+        getDetailInfo(response.data.data.concertInfo[0].id);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  /* 상세 콘서트 받아오기 */
+  const getDetailInfo = async (id: number) => {
+    try {
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL}/concert/${id}`,
+        { withCredentials: true },
+      );
+      if (response.data.data) {
+        /* 서버 응답값이 있다면 detail(상세정보) 갱신 */
+        dispatch(setDetail(response.data.data.concertInfo));
+        getAllComments(id);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  /* 모든 댓글 가져오기 함수 */
+  const getAllComments = async (id: number) => {
+    try {
+      if (target) {
+        /* response 변수에 서버 응답결과를 담는다 */
+        const response = await axios.get(
+          `${process.env.REACT_APP_API_URL}/concert/${id}/comment?pageNum=${pageNum}`,
+          { withCredentials: true },
+        );
+        /* 서버의 응답결과에 유효한 값이 담겨있다면 댓글 조회 성공*/
+        if (response.data) {
+          /* 모든 페이지수 & 모든 댓글목록을 전역 상태에 담는다 */
+          dispatch(setTotalNum(response.data.data.totalPage));
+          dispatch(setPageAllComments(response.data.data.concertCommentInfo));
+          dispatch(setMainTotalComments(response.data.data.totalComment));
+        }
+      }
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   // 로그아웃 핸들러
@@ -70,6 +154,7 @@ function MyDropDown() {
         { withCredentials: true },
       );
       /* 로그인 상태 변경 & main 페이지로 이동 & 로그아웃 성공 모달 생성 */
+      dispatch(loginCheck(false));
       dispatch(logout());
       dispatch(getUserInfo({}));
       dispatch(showAlertModal(true));
@@ -87,9 +172,9 @@ function MyDropDown() {
     /* Common */
     dispatch(setTarget({}));
     /* MainPage */
-    dispatch(setTargetIdx(0));
-    dispatch(setPageNum(1));
-    dispatch(setOrder('view'));
+    // dispatch(setTargetIdx(0));
+    // dispatch(setPageNum(1));
+    // dispatch(setOrder('view'));
     /* ConcertPage */
     dispatch(showConcertModal(false));
     /* ConchinPage */
@@ -100,76 +185,20 @@ function MyDropDown() {
 
   // 마이페이지 버튼을 누르면, 다음이 실행된다
   const handleMypageBtn = async () => {
-
-    // 프로필 수정 / 콘친인증 버튼 SWITCH OFF
-    dispatch(getBtnSwitchState({
-      profileEdit: false,
-      conchinCertification: false,
-      userResign: false
-    }))
-
-    // 내가 쓴 댓글 기본값을 '콘서트'로 설정
-    dispatch(getCommentBtnType('콘서트'));
-    
-    /****************************************************************************************************/
-    // 내가 쓴 게시물 axios 테스트
-    const response = await axios.get(
-      `${process.env.REACT_APP_API_URL}/user/myarticle?pageNum=1`,
-      { withCredentials: true },
-    );
-
-    dispatch(getArticleInfo(response.data.data));
-    dispatch(getMyArticleTotalPage(response.data.data.totalPage));
-
-    dispatch(getMyTotalArticle(response.data.data.totalArticle))
-
-    /****************************************************************************************************/
-    // 내가 쓴 댓글(콘서트 게시물) axios 테스트
-    const responseMyConcertComment = await axios.get(
-      `${process.env.REACT_APP_API_URL}/user/mycomment?pageNum=1`,
-      { withCredentials: true },
-    );
-
-    dispatch(getMyConcertCommentInfo(responseMyConcertComment.data.data));
-    dispatch(
-      getMyConcertCommentTotalPage(
-        responseMyConcertComment.data.data.totalPage,
-      ),
-    );
-    dispatch(
-      getMyTotalConcertComment(
-        responseMyConcertComment.data.data.totalConcertComment,
-      ),
-    );
-    // 전체 페이지가 0이 아니라면, 항상 마이페이지에 진입했을 때 내가 쓴 댓글의 현재페이지는 1이다
-    if(responseMyConcertComment.data.data.totalPage !== 0) dispatch(getMyConcertCommentCurrentPage(1))
-    
-    /****************************************************************************************************/
-    // 내가 쓴 댓글(콘친 게시물) axios 테스트
-    const responseMyArticleComment = await axios.get(
-      `${process.env.REACT_APP_API_URL}/user/mycomment?pageNum=1&comment_type=article`,
-      { withCredentials: true },
-    );
-
-    /* 마이페이지 -> 메인페이지 이동시 가져갈 전체 콘서트 목록(조회수 고정) */
-    const responseAllConcerts = await axios.get(
-      `${process.env.REACT_APP_API_URL}/concert`,
-      { withCredentials: true },
-    );
-
-    dispatch(getMyArticleCommentInfo(responseMyArticleComment.data.data));
-    dispatch(
-      getMyArticleCommentTotalPage(
-        responseMyArticleComment.data.data.totalPage,
-      ),
-    );
-    dispatch(
-      getMyTotalArticleComment(
-        responseMyArticleComment.data.data.totalArticleComment,
-      ),
-    );
-    dispatch(setAllConcerts(responseAllConcerts.data.data.concertInfo));
-    resetHandler();
+    try {
+      // isLoading 초기상태 세팅
+      dispatch(
+        setIsLoadingState({
+          myArticle: false,
+          myConcertComment: false,
+          myArticleComment: false,
+        }),
+      );
+      // 콘서트 페이지에서 콘서트를 선택한 후 마이페이지로 넘어갈 때, 지도 API close 해주는 함수
+      resetHandler();
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   return (
